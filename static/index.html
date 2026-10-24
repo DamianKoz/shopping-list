@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Einkauf</title>
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1b1a18" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Einkauf">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header class="header">
+      <h1>
+        <button id="list-button" class="title" type="button" aria-expanded="false" aria-controls="lists-panel">
+          <span id="list-name">Einkauf</span><span class="chevron" aria-hidden="true">⌄</span>
+        </button>
+      </h1>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Farbschema wechseln"></button>
+    </header>
+    <p id="status" class="status" role="status" hidden>Keine Verbindung – nur lesen</p>
+    <p id="error" class="error" role="alert" hidden></p>
+
+    <section id="lists-panel" class="lists-panel" aria-label="Listen" hidden>
+      <ul id="lists" class="list"></ul>
+      <form id="new-list-form" class="add">
+        <input id="new-list" type="text" maxlength="200" placeholder="Neue Liste"
+               aria-label="Name der neuen Liste" autocomplete="off" enterkeyhint="done">
+        <button id="new-list-button" type="submit" aria-label="Liste anlegen">+</button>
+      </form>
+    </section>
+
+    <div id="list-view">
+      <form id="add-form" class="add">
+        <input id="new-item" type="text" maxlength="200" placeholder="Artikel hinzufügen"
+               aria-label="Neuer Artikel" autocomplete="off" enterkeyhint="done">
+        <button id="add-button" type="submit" aria-label="Hinzufügen">+</button>
+      </form>
+
+      <ul id="open-list" class="list" aria-label="Offen"></ul>
+      <p id="empty" class="empty" hidden>Die Liste ist leer.</p>
+
+      <details id="done-section" class="done" hidden>
+        <summary id="done-summary">Erledigt</summary>
+        <ul id="done-list" class="list"></ul>
+        <button id="clear-done" type="button" class="link">Erledigte entfernen</button>
+      </details>
+    </div>
+  </main>
+</body>
+</html>

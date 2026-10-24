@@ -1,0 +1,6 @@
+/shopping-list
+/shopping-list-linux
+*.db
+*.db-shm
+*.db-wal
+env
