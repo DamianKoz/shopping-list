@@ -18,8 +18,6 @@ größere Änderungen machst.
 - **Schema-Änderungen nur als neuer Eintrag am Ende von `migrations`** in
   `main.go`. Bestehende Einträge nie ändern, die Produktionsdatenbank hat sie
   schon angewendet.
-- **Nicht committen:** die Datei `deploy` im Projektordner. Sie ist eine
-  veraltete Kopie von `deploy.sh`.
 
 ## Oberfläche
 
