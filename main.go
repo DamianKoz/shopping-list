@@ -65,6 +65,7 @@ var migrations = []string{
 	INSERT INTO lists (id, name) VALUES (1, 'Einkauf');
 	ALTER TABLE items ADD COLUMN list_id INTEGER NOT NULL DEFAULT 1;
 	CREATE INDEX items_list_id ON items (list_id);`,
+	`ALTER TABLE items ADD COLUMN position INTEGER NOT NULL DEFAULT 0;`,
 }
 
 type list struct {
@@ -78,14 +79,15 @@ type item struct {
 	ListID    int64  `json:"list_id"`
 	Name      string `json:"name"`
 	Completed bool   `json:"completed"`
+	Position  int64  `json:"position"`
 	CreatedAt string `json:"created_at"`
 }
 
-const itemColumns = `id, list_id, name, completed, created_at`
+const itemColumns = `id, list_id, name, completed, position, created_at`
 
 func scanItem(row interface{ Scan(...any) error }) (item, error) {
 	var it item
-	err := row.Scan(&it.ID, &it.ListID, &it.Name, &it.Completed, &it.CreatedAt)
+	err := row.Scan(&it.ID, &it.ListID, &it.Name, &it.Completed, &it.Position, &it.CreatedAt)
 	return it, err
 }
 
@@ -428,7 +430,7 @@ func (a *app) loadLists(ctx context.Context) ([]list, error) {
 		return nil, err
 	}
 
-	rows, err = tx.QueryContext(ctx, `SELECT `+itemColumns+` FROM items ORDER BY completed, id`)
+	rows, err = tx.QueryContext(ctx, `SELECT `+itemColumns+` FROM items ORDER BY completed, position, id`)
 	if err != nil {
 		return nil, err
 	}
@@ -528,8 +530,11 @@ func (a *app) addItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Selecting from lists makes the insert a no-op if the list doesn't exist.
+	// New items go to the end of the list.
 	it, err := scanItem(a.db.QueryRowContext(r.Context(),
-		`INSERT INTO items (name, list_id) SELECT ?, id FROM lists WHERE id = ? RETURNING `+itemColumns, name, listID))
+		`INSERT INTO items (name, list_id, position)
+		SELECT ?, id, (SELECT COALESCE(MAX(position), 0) + 1 FROM items WHERE list_id = lists.id)
+		FROM lists WHERE id = ? RETURNING `+itemColumns, name, listID))
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "Liste nicht gefunden.")
 		return
@@ -542,29 +547,86 @@ func (a *app) addItem(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, it)
 }
 
+// updateItem changes the completed state, moves the item to another list
+// and/or to the top of its list. Moved items go to the end of the target list.
 func (a *app) updateItem(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r)
 	if !ok {
 		return
 	}
 	var req struct {
-		Completed *bool `json:"completed"`
+		Completed *bool  `json:"completed"`
+		ListID    *int64 `json:"list_id"`
+		ToTop     bool   `json:"to_top"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if req.Completed == nil {
-		writeError(w, http.StatusBadRequest, "Feld \"completed\" fehlt.")
+	if req.Completed == nil && req.ListID == nil && !req.ToTop {
+		writeError(w, http.StatusBadRequest, "Keine Änderung angegeben.")
 		return
 	}
 
-	it, err := scanItem(a.db.QueryRowContext(r.Context(),
-		`UPDATE items SET completed = ? WHERE id = ? RETURNING `+itemColumns, *req.Completed, id))
+	ctx := r.Context()
+	tx, err := a.db.BeginTx(ctx, nil)
+	if err != nil {
+		serverError(w, "update item", err)
+		return
+	}
+	defer tx.Rollback()
+
+	var listID int64
+	err = tx.QueryRowContext(ctx, `SELECT list_id FROM items WHERE id = ?`, id).Scan(&listID)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "Artikel nicht gefunden.")
 		return
 	}
 	if err != nil {
+		serverError(w, "update item", err)
+		return
+	}
+
+	if req.Completed != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE items SET completed = ? WHERE id = ?`, *req.Completed, id); err != nil {
+			serverError(w, "update item", err)
+			return
+		}
+	}
+	if req.ListID != nil && *req.ListID != listID {
+		var exists bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM lists WHERE id = ?)`, *req.ListID).Scan(&exists); err != nil {
+			serverError(w, "move item", err)
+			return
+		}
+		if !exists {
+			writeError(w, http.StatusNotFound, "Liste nicht gefunden.")
+			return
+		}
+		listID = *req.ListID
+		_, err := tx.ExecContext(ctx,
+			`UPDATE items SET list_id = ?1, position = (SELECT COALESCE(MAX(position), 0) + 1 FROM items WHERE list_id = ?1) WHERE id = ?2`,
+			listID, id)
+		if err != nil {
+			serverError(w, "move item", err)
+			return
+		}
+	}
+	if req.ToTop {
+		_, err := tx.ExecContext(ctx,
+			`UPDATE items SET position = (SELECT MIN(position) FROM items WHERE list_id = ?) - 1 WHERE id = ?`,
+			listID, id)
+		if err != nil {
+			serverError(w, "move item to top", err)
+			return
+		}
+	}
+
+	it, err := scanItem(tx.QueryRowContext(ctx, `SELECT `+itemColumns+` FROM items WHERE id = ?`, id))
+	if err != nil {
+		serverError(w, "update item", err)
+		return
+	}
+	if err := tx.Commit(); err != nil {
 		serverError(w, "update item", err)
 		return
 	}

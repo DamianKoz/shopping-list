@@ -20,6 +20,13 @@ const clearDone = $('clear-done');
 const empty = $('empty');
 const status = $('status');
 const errorBox = $('error');
+const menu = $('item-menu');
+const menuTitle = $('menu-title');
+const menuActions = $('menu-actions');
+const menuLists = $('menu-lists');
+const menuTop = $('menu-top');
+const menuMove = $('menu-move');
+const menuDelete = $('menu-delete');
 
 const OFFLINE_MSG = 'Keine Verbindung – nicht gespeichert.';
 
@@ -66,8 +73,9 @@ function render() {
   document.title = listName.textContent;
   listsEl.replaceChildren(...lists.map(listRow));
 
-  const done = items.filter((i) => i.completed);
-  openList.replaceChildren(...items.filter((i) => !i.completed).map(itemRow));
+  const sorted = [...items].sort((a, b) => a.position - b.position || a.id - b.id);
+  const done = sorted.filter((i) => i.completed);
+  openList.replaceChildren(...sorted.filter((i) => !i.completed).map(itemRow));
   doneList.replaceChildren(...done.map(itemRow));
   doneSection.hidden = done.length === 0;
   doneSummary.textContent = `Erledigt (${done.length})`;
@@ -124,20 +132,24 @@ function itemRow(item) {
   label.append(box, name);
 
   const li = document.createElement('li');
-  li.append(label, deleteButton(`${item.name} löschen`, `delete-${item.id}`, () => remove(item)));
+  li.append(label, rowButton('…', `Aktionen für ${item.name}`, `menu-${item.id}`, () => openMenu(item)));
   return li;
 }
 
 function deleteButton(label, key, onClick) {
-  const del = document.createElement('button');
-  del.type = 'button';
-  del.className = 'delete';
-  del.textContent = '×';
-  del.disabled = offline;
-  del.dataset.key = key;
-  del.setAttribute('aria-label', label);
-  del.addEventListener('click', onClick);
-  return del;
+  return rowButton('×', label, key, onClick);
+}
+
+function rowButton(text, label, key, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'row-button';
+  button.textContent = text;
+  button.disabled = offline;
+  button.dataset.key = key;
+  button.setAttribute('aria-label', label);
+  button.addEventListener('click', onClick);
+  return button;
 }
 
 function showError(msg) {
@@ -171,6 +183,54 @@ document.addEventListener('keydown', (e) => {
     closePanel();
     listButton.focus();
   }
+});
+
+// --- Item menu (action sheet) ---
+
+let menuItem = null;
+
+function openMenu(item) {
+  menuItem = item;
+  menuTitle.textContent = item.name;
+  menuTop.hidden = item.completed;
+  menuMove.hidden = lists.length < 2;
+  menuActions.hidden = false;
+  menuLists.hidden = true;
+  menu.showModal();
+}
+
+// menuAction closes the menu and then performs the chosen action.
+function menuAction(action) {
+  return () => {
+    const item = menuItem;
+    menu.close();
+    action(item);
+  };
+}
+
+menuTop.addEventListener('click', menuAction((item) => update(item, { to_top: true })));
+menuDelete.addEventListener('click', menuAction(remove));
+menuMove.addEventListener('click', () => {
+  menuTitle.textContent = 'Verschieben nach';
+  menuLists.replaceChildren(
+    ...lists
+      .filter((l) => l.id !== menuItem.list_id)
+      .map((l) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = l.name;
+        button.addEventListener('click', menuAction((item) => update(item, { list_id: l.id })));
+        return button;
+      }),
+  );
+  menuActions.hidden = true;
+  menuLists.hidden = false;
+  menuLists.firstElementChild.focus();
+});
+$('menu-cancel').addEventListener('click', () => menu.close());
+// A click on the dialog itself (not its buttons) is a click on the backdrop.
+menu.addEventListener('click', (e) => {
+  if (e.target === menu) menu.close();
 });
 
 // --- Data ---
@@ -220,6 +280,16 @@ function applyLocal(change) {
   lists = change(lists);
   save();
   render();
+}
+
+// placeItem returns a change that puts an updated item into its (maybe new) list.
+function placeItem(updated) {
+  return (all) =>
+    all.map((l) => {
+      const items = l.items.filter((i) => i.id !== updated.id);
+      if (l.id === updated.list_id) items.push(updated);
+      return { ...l, items };
+    });
 }
 
 // changeItems returns a change that applies fn to the items of one list.
@@ -292,9 +362,13 @@ newListForm.addEventListener('submit', (e) => {
 });
 
 function toggle(item, completed) {
+  update(item, { completed });
+}
+
+function update(item, changes) {
   mutate(async () => {
-    const updated = await api('PATCH', `/api/items/${item.id}`, { completed });
-    applyLocal(changeItems(item.list_id, (items) => items.map((i) => (i.id === updated.id ? updated : i))));
+    const updated = await api('PATCH', `/api/items/${item.id}`, changes);
+    applyLocal(placeItem(updated));
   });
 }
 

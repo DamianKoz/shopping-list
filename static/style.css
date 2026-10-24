@@ -208,7 +208,7 @@ input[type="checkbox"]:checked { background: var(--accent); border-color: var(--
 input[type="checkbox"]:checked::after { opacity: 1; }
 input[type="checkbox"]:disabled { cursor: default; opacity: 0.5; }
 
-.delete {
+.row-button {
   flex: none;
   width: 44px;
   height: 44px;
@@ -220,7 +220,7 @@ input[type="checkbox"]:disabled { cursor: default; opacity: 0.5; }
   line-height: 1;
 }
 
-.delete:hover:not(:disabled) { color: var(--fg); }
+.row-button:hover:not(:disabled) { color: var(--fg); }
 
 .empty {
   margin: 48px 0;
@@ -302,5 +302,58 @@ input[type="checkbox"]:disabled { cursor: default; opacity: 0.5; }
   border-radius: 12px;
   background: var(--accent);
   color: var(--accent-fg);
+  font-weight: 600;
+}
+
+/* Item menu: an iOS-style action sheet at the bottom of the screen */
+
+.sheet {
+  width: calc(100% - 16px);
+  max-width: 36rem;
+  margin: auto auto calc(env(safe-area-inset-bottom) + 8px);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+}
+
+.sheet::backdrop { background: rgb(0 0 0 / 0.35); }
+
+.sheet-group,
+.sheet-cancel {
+  border-radius: 14px;
+  background: var(--field);
+}
+
+.sheet-group { overflow: hidden; }
+
+.sheet-title {
+  margin: 0;
+  padding: 14px 16px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.sheet-group button,
+.sheet-cancel {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 16px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: var(--accent);
+  font-size: 1.05rem;
+}
+
+.sheet-group .destructive { color: var(--danger); }
+
+.sheet-cancel {
+  margin-top: 8px;
+  border-top: 0;
+  background: var(--field);
   font-weight: 600;
 }
