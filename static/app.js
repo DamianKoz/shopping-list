@@ -225,7 +225,7 @@ menuMove.addEventListener('click', () => {
   );
   menuActions.hidden = true;
   menuLists.hidden = false;
-  menuLists.firstElementChild.focus();
+  menu.focus();
 });
 $('menu-cancel').addEventListener('click', () => menu.close());
 // A click on the dialog itself (not its buttons) is a click on the backdrop.

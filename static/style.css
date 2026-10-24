@@ -351,6 +351,11 @@ input[type="checkbox"]:disabled { cursor: default; opacity: 0.5; }
 
 .sheet-group .destructive { color: var(--danger); }
 
+/* No outlines in the sheet: they look like stray colored separators. The
+   keyboard-focused entry gets a background instead. */
+.sheet:focus { outline: none; }
+.sheet button:focus-visible { outline: none; background: var(--line); }
+
 .sheet-cancel {
   margin-top: 8px;
   border-top: 0;
